@@ -1,0 +1,167 @@
+Prayers API — Frontend integration instructions
+
+Overview
+
+This document describes how the React + Vite frontend should call the Prayers API implemented in server/. The frontend must set the environment variable VITE_API_URL to the API base (no trailing slash) — for local development this is:
+
+  VITE_API_URL=http://localhost:3000/api
+
+The API base maps endpoints under the path /api/prayers. All requests and responses use JSON. The server enables CORS for development so the Vite dev server can call it directly.
+
+Response shapes
+
+- Successful GET /api/prayers
+  JSON object keyed by date (YYYY-MM-DD). Example:
+  {
+    "2025-11-24": { "الفجر": 1, "الظهر": 3 },
+    "2025-11-23": { "الفجر": 2 }
+  }
+
+- Successful GET /api/prayers/:dateKey
+  JSON object for that date (prayer -> status) or {} when no data exists. Example:
+  { "الفجر": 1 }
+
+- Successful POST /api/prayers (upsert)
+  { "success": true, "data": { <the updated day object> } }
+
+- Successful POST /api/prayers/batch
+  JSON object keyed by requested date strings. Missing dates return an empty object for that key.
+  Example: { "2025-11-24": { ... }, "2025-11-23": {} }
+
+- Error responses (4xx/5xx)
+  { "error": "message" }
+
+Request limits and validation
+
+- Request body size limit: 10kb.
+- Validation rules:
+  - date must be YYYY-MM-DD
+  - prayer must be a non-empty string
+  - status must be an integer and one of 1, 2, or 3
+- Invalid requests return 400 with a JSON error message.
+
+Endpoints and sample fetch calls
+
+Use the frontend environment variable VITE_API_URL as the base. In code, you can reference:
+
+  const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+
+1) Get all saved prayer data
+- HTTP: GET
+- URL: ${API_BASE}/prayers
+- Example (fetch):
+
+  const res = await fetch(`${API_BASE}/prayers`);
+  const body = await res.json();
+  if (!res.ok) throw new Error(body.error || 'Request failed');
+  // body is an object keyed by date
+
+2) Get a single date
+- HTTP: GET
+- URL: ${API_BASE}/prayers/:dateKey
+- Example:
+
+  const dateKey = '2025-11-24';
+  const res = await fetch(`${API_BASE}/prayers/${dateKey}`);
+  const day = await res.json();
+  // day is {} or { "الفجر": 1, ... }
+
+3) Upsert a single prayer status
+- HTTP: POST
+- URL: ${API_BASE}/prayers
+- Body JSON: { "date": "YYYY-MM-DD", "prayer": "الفجر", "status": 1 }
+- Example:
+
+  const payload = { date: '2025-11-24', prayer: 'الفجر', status: 1 };
+  const res = await fetch(`${API_BASE}/prayers`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body.error || 'Upsert failed');
+  // body.data is the updated day object
+
+4) Batch retrieve multiple dates
+- HTTP: POST
+- URL: ${API_BASE}/prayers/batch
+- Body JSON: { "dates": ["YYYY-MM-DD", "YYYY-MM-DD"] }
+- Example:
+
+  const res = await fetch(`${API_BASE}/prayers/batch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dates: ['2025-11-24', '2025-11-23'] })
+  });
+  const data = await res.json();
+  // data is an object keyed by date; missing dates map to {}
+
+5) (Optional) Delete a day's data (useful for tests)
+- HTTP: DELETE
+- URL: ${API_BASE}/prayers/:dateKey
+- Example:
+
+  await fetch(`${API_BASE}/prayers/2025-11-24`, { method: 'DELETE' });
+
+Error handling patterns
+
+- Always check response.ok. The server returns JSON error bodies like { error: 'message' }.
+- Example utility function:
+
+  async function safeJsonFetch(url, opts) {
+    const res = await fetch(url, opts);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Network error');
+    return data;
+  }
+
+Frontend environment setup (Vite)
+
+- Create a file `.env.local` at the frontend root (not committed) and add:
+
+  VITE_API_URL=http://localhost:3000/api
+
+- Restart the Vite dev server after changing env.
+
+Notes and tips
+
+- CORS: the server enables CORS by default for convenience during development. In production, configure a specific origin.
+- Body size: payloads should be small; large payloads may be rejected due to the 10kb limit.
+- Dates: always use the YYYY-MM-DD format. Keep date creation centralized (e.g., via a date util) to ensure consistency with backend keys.
+- Prayer names: stored as keys (strings). Use the exact names your UI expects (Arabic names are supported as object keys).
+- Stability: the JSON shapes are stable. The server will return an empty object for dates without data rather than a 404.
+
+Debugging
+
+- Health check: GET ${API_BASE.replace('/api','')}/health returns { "status": "ok" } (or use GET / on the API host for a short info message).
+- If requests fail: verify the frontend is using the correct VITE_API_URL and that the server is running on port 3000 (or as configured by SERVER_PORT).
+
+Example integration into `src/services/api.js` (pseudo-code)
+
+  const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+
+  export async function getAllPrayers() {
+    return safeJsonFetch(`${API_BASE}/prayers`);
+  }
+
+  export async function getPrayersByDate(dateKey) {
+    return safeJsonFetch(`${API_BASE}/prayers/${dateKey}`);
+  }
+
+  export async function upsertPrayer(date, prayer, status) {
+    return safeJsonFetch(`${API_BASE}/prayers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date, prayer, status })
+    });
+  }
+
+  export async function getBatch(dates) {
+    return safeJsonFetch(`${API_BASE}/prayers/batch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dates })
+    });
+  }
+
+If you want, I can: provide a ready-to-drop-in update for your frontend `src/services/api.js` that matches these call shapes exactly, or add TypeScript types for the responses. Let me know which you'd prefer.

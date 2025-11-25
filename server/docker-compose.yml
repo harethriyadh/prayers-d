@@ -1,0 +1,11 @@
+version: "3.8"
+services:
+  prayers-server:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./prayers.db:/app/prayers.db
+    environment:
+      - SERVER_PORT=3000
+      - SQLITE_FILE=./prayers.db

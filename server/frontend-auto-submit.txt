@@ -1,0 +1,111 @@
+Auto-submit on status selection — Frontend instructions
+
+Goal
+When the user chooses a prayer status (e.g., "أديت", "قضاء", "لم أصل"), the frontend should immediately submit that single status to the server (POST /api/prayers) with minimal latency and good UX (optimistic update + error handling).
+
+Overview
+- Use the API endpoint POST ${API_BASE}/prayers with body { date, prayer, status }.
+- Do a local optimistic update so the UI reflects the new status immediately.
+- Submit the change in the background. If the request fails, roll back the optimistic update and show a toast or inline error.
+- Keep the code small and framework-idiomatic (React example provided). If your app uses Redux/Context, adapt accordingly.
+
+API helper (drop this into `src/services/api.js` or add to existing service):
+
+export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+
+export async function upsertPrayer(date, prayer, status) {
+  const res = await fetch(`${API_BASE}/prayers`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ date, prayer, status }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || 'Failed to save');
+  return body.data;
+}
+
+React component pattern (example `PrayerStatusPicker.jsx`)
+
+- Accepts props: date (YYYY-MM-DD), prayer (string), value (current status), onChange(optional callback)
+- Calls upsertPrayer on selection and uses optimistic UI
+
+import React, { useState } from 'react';
+import { upsertPrayer } from '../services/api';
+
+const OPTIONS = [
+  { label: 'أديت', value: 1 },
+  { label: 'قضاء', value: 2 },
+  { label: 'لم أصل', value: 3 },
+];
+
+export default function PrayerStatusPicker({ date, prayer, value: initialValue, onChange }) {
+  const [value, setValue] = useState(initialValue || null);
+  const [saving, setSaving] = useState(false);
+
+  async function handleSelect(newValue) {
+    // Optimistic update
+    const prev = value;
+    setValue(newValue);
+    setSaving(true);
+
+    try {
+      const updatedDay = await upsertPrayer(date, prayer, newValue);
+      // optionally sync more data from updatedDay (if stored elsewhere)
+      setSaving(false);
+      if (onChange) onChange(updatedDay);
+    } catch (err) {
+      // rollback on error
+      setValue(prev);
+      setSaving(false);
+      console.error('Save failed', err);
+      // show user-friendly error (toast/snackbar)
+      alert('فشل حفظ الحالة. حاول مرة أخرى.');
+    }
+  }
+
+  return (
+    <div className="prayer-status-picker">
+      {OPTIONS.map((opt) => (
+        <button
+          key={opt.value}
+          onClick={() => handleSelect(opt.value)}
+          disabled={saving}
+          aria-pressed={value === opt.value}
+          style={{ marginRight: 8 }}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+Integration tips
+- If your UI uses radio inputs, attach the same `handleSelect` to the onChange handler.
+- If you maintain a global cache of prayer days, update it with the returned `updatedDay` from the API to keep other components consistent.
+- Keep calls debounced only if you expect rapid repeated changes; for this use case immediate submission is preferred.
+- Respect the backend 10kb limit (we send tiny payloads per selection).
+
+Accessibility
+- Use `aria-pressed` or radio semantics so screen readers understand the selected state.
+- Add an invisible live region to announce save failures/success if helpful.
+
+Example with optimistic global cache (React Context / simple store)
+- If you store `days` as object keyed by date, do:
+
+// optimistic update
+const prevDay = days[date] || {};
+const newDay = { ...prevDay, [prayer]: newValue };
+setDays((s) => ({ ...s, [date]: newDay }));
+try {
+  const updated = await upsertPrayer(date, prayer, newValue);
+  setDays((s) => ({ ...s, [date]: updated }));
+} catch (e) {
+  setDays((s) => ({ ...s, [date]: prevDay }));
+}
+
+That's it — paste the `upsertPrayer` helper into your frontend service and use the `PrayerStatusPicker` pattern to submit immediately after a user selects a status. If you want, I can:
+- Patch your frontend `src/components/...` directly if you point me to the file path, or
+- Generate a ready-to-drop-in patch for a likely file name (e.g., `src/components/PrayerCard.jsx`).
+
+Which would you prefer?"
