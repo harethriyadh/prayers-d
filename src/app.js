@@ -37,6 +37,26 @@ function createApp() {
     res.json({ status: 'ok' });
   });
 
+  // Diagnostic endpoint to check DB connection
+  app.get('/debug-db', async (req, res) => {
+    try {
+      const col = await db.connect();
+      const count = await col.countDocuments();
+      res.json({ 
+        status: 'success', 
+        message: 'Connected to MongoDB', 
+        documentCount: count,
+        dbName: process.env.MONGO_DB || 'prayers_db'
+      });
+    } catch (err) {
+      res.status(500).json({ 
+        status: 'error', 
+        error: err.message,
+        hint: 'Check if MONGO_URL is set in Render Environment settings and IP is whitelisted in Atlas.'
+      });
+    }
+  });
+
   // 404
   app.use((req, res) => {
     res.status(404).json({ error: 'Not found' });

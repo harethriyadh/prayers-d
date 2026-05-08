@@ -9,11 +9,15 @@ let collection;
 async function connect() {
   if (collection) return collection;
   if (!MONGO_URL) {
-    throw new Error('MONGO_URL not set');
+    console.error('❌ CRITICAL: MONGO_URL environment variable is missing!');
+    throw new Error('Database configuration missing (MONGO_URL)');
   }
+  
+  console.log('📡 Attempting to connect to MongoDB...');
   client = new MongoClient(MONGO_URL);
   await client.connect();
   const db = client.db(DB_NAME);
+  console.log(`✅ Connected to database: ${DB_NAME}`);
   collection = db.collection('prayer_days');
   try {
     await collection.createIndex({ userId: 1, date: 1 }, { unique: true });
