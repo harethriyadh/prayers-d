@@ -10,6 +10,7 @@ async function connect() {
   if (collection) return collection;
   if (!MONGO_URL) {
     console.error('❌ CRITICAL: MONGO_URL environment variable is missing!');
+    console.error('Current environment keys:', Object.keys(process.env));
     throw new Error('Database configuration missing (MONGO_URL)');
   }
   
