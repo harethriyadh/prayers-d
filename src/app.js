@@ -11,6 +11,21 @@ function createApp() {
   app.use(morgan('dev'));
   app.use(express.json({ limit: '10kb' }));
 
+  // Custom middleware to display a description of each request from the frontend
+  app.use((req, res, next) => {
+    console.log(`\n--- Incoming Request from Frontend ---`);
+    console.log(`Method: ${req.method}`);
+    console.log(`URL: ${req.originalUrl}`);
+    if (Object.keys(req.query).length > 0) {
+      console.log(`Query Params:`, req.query);
+    }
+    if (Object.keys(req.body).length > 0) {
+      console.log(`Body:`, req.body);
+    }
+    console.log(`--------------------------------------`);
+    next();
+  });
+
   app.use('/api/prayers', prayersRouter);
 
   // Root info and health endpoints

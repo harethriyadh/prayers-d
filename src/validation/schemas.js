@@ -4,7 +4,7 @@ const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 
 const UpsertSchema = z.object({
   date: z.string().regex(dateRegex, { message: 'date must be YYYY-MM-DD' }),
-  prayer: z.string().min(1),
+  prayer: z.enum(['الفجر', 'الظهر', 'العصر', 'المغرب', 'العشاء']),
   status: z.number().int().refine((n) => [1, 2, 3].includes(n), {
     message: 'status must be one of: 1,2,3',
   }),

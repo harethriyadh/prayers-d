@@ -8,6 +8,7 @@
  */
 
 const { MongoClient } = require('mongodb');
+require('dotenv').config();
 
 const MONGO_URL = process.env.MONGO_URL;
 const DB_NAME = process.env.MONGO_DB || 'prayers_db';
@@ -31,14 +32,15 @@ async function run() {
     const db = client.db(DB_NAME);
     const col = db.collection('prayer_days');
 
-    if (DROP) {
-      console.log('Dropping existing documents in prayer_days...');
-      await col.deleteMany({});
-    }
+    console.log('Dropping existing database completely...');
+    await db.dropDatabase();
+
+    // The current schema requires a unique index on userId and date
+    await col.createIndex({ userId: 1, date: 1 }, { unique: true });
 
     const ops = Object.entries(SAMPLE).map(([date, data]) => ({
       updateOne: {
-        filter: { _id: date },
+        filter: { userId: 'anonymous', date: date },
         update: { $set: { data } },
         upsert: true,
       },

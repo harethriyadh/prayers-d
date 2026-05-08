@@ -15,23 +15,27 @@ async function connect() {
   await client.connect();
   const db = client.db(DB_NAME);
   collection = db.collection('prayer_days');
-  // ensure index on _id (date) is present by default
+  try {
+    await collection.createIndex({ userId: 1, date: 1 }, { unique: true });
+  } catch (err) {
+    console.error('Index creation failed (likely existing data conflict):', err.message);
+  }
   return collection;
 }
 
 async function getAll() {
   const col = await connect();
-  const docs = await col.find({}).toArray();
+  const docs = await col.find({ userId: 'anonymous' }).toArray();
   const out = {};
   for (const d of docs) {
-    out[d._id] = d.data || {};
+    out[d.date] = d.data || {};
   }
   return out;
 }
 
 async function getByDate(date) {
   const col = await connect();
-  const doc = await col.findOne({ _id: date });
+  const doc = await col.findOne({ userId: 'anonymous', date: date });
   return doc ? doc.data || {} : {};
 }
 
@@ -39,28 +43,28 @@ async function upsertPrayer(date, prayer, status) {
   const col = await connect();
   const existing = await getByDate(date);
   const updated = { ...existing, [prayer]: status };
-  await col.updateOne({ _id: date }, { $set: { data: updated } }, { upsert: true });
+  await col.updateOne({ userId: 'anonymous', date: date }, { $set: { data: updated } }, { upsert: true });
   return updated;
 }
 
 async function getBatch(dates) {
   const col = await connect();
-  const docs = await col.find({ _id: { $in: dates } }).toArray();
+  const docs = await col.find({ userId: 'anonymous', date: { $in: dates } }).toArray();
   const map = {};
   for (const d of dates) map[d] = {};
-  for (const doc of docs) map[doc._id] = doc.data || {};
+  for (const doc of docs) map[doc.date] = doc.data || {};
   return map;
 }
 
 async function deleteByDate(date) {
   const col = await connect();
-  const res = await col.deleteOne({ _id: date });
+  const res = await col.deleteOne({ userId: 'anonymous', date: date });
   return res.deletedCount > 0;
 }
 
 async function clearAll() {
   const col = await connect();
-  await col.deleteMany({});
+  await col.deleteMany({ userId: 'anonymous' });
 }
 
 async function close() {
