@@ -12,28 +12,23 @@ function startCronJobs() {
       const dateStr = dateObj.toLocaleDateString('en-CA', { timeZone: 'Asia/Riyadh' });
       
       // Check if there are any records for today
-      const existing = await db.getByDate(dateStr);
+      const existing = (await db.getByDate(dateStr)) || {};
       
-      // If there are no records at all
-      if (!existing || Object.keys(existing).length === 0) {
-        console.log(`No records found for ${dateStr}. Marking all as not prayed.`);
-        
-        const missedPrayers = {
-          'الفجر': 3,
-          'الظهر': 3,
-          'العصر': 3,
-          'المغرب': 3,
-          'العشاء': 3
-        };
-        
-        // Upsert all missed prayers
-        for (const [prayer, status] of Object.entries(missedPrayers)) {
-          await db.upsertPrayer(dateStr, prayer, status);
+      const allPrayers = ['الفجر', 'الظهر', 'العصر', 'المغرب', 'العشاء'];
+      let updatedCount = 0;
+
+      for (const prayer of allPrayers) {
+        // If the specific prayer has not been recorded
+        if (!existing[prayer]) {
+          await db.upsertPrayer(dateStr, prayer, 3);
+          updatedCount++;
         }
-        
-        console.log(`Successfully marked all prayers for ${dateStr} as 'لم أصل'.`);
+      }
+
+      if (updatedCount > 0) {
+        console.log(`Successfully marked ${updatedCount} unrecorded prayer(s) for ${dateStr} as 'لم أصل'.`);
       } else {
-        console.log(`Records already exist for ${dateStr}. No action taken.`);
+        console.log(`All prayers already recorded for ${dateStr}. No action taken.`);
       }
     } catch (err) {
       console.error('Error in daily prayer check cron job:', err);
