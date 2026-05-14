@@ -49,6 +49,12 @@ test('POST /api/prayers upserts and GET /api/prayers/:dateKey returns updated st
   const get = await request(app).get('/api/prayers/2025-11-24');
   expect(get.status).toBe(200);
   expect(get.body).toHaveProperty('الفجر', 1);
+
+  // Test status 0 (cleared/no state)
+  const payloadZero = { date: '2025-11-24', prayer: 'الفجر', status: 0 };
+  const resZero = await request(app).post('/api/prayers').send(payloadZero).set('Accept', 'application/json');
+  expect(resZero.status).toBe(200);
+  expect(resZero.body.data).toHaveProperty('الفجر', 0);
 });
 
 test('POST /api/prayers/batch returns requested dates including empty object for missing', async () => {
