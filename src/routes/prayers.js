@@ -74,4 +74,9 @@ router.post('/trigger-cron', async (req, res, next) => {
   }
 });
 
+// GET /api/prayers/ping - useless endpoint for keep-alive
+router.get('/ping', (req, res) => {
+  res.json({ status: 'alive', timestamp: new Date().toISOString() });
+});
+
 module.exports = router;

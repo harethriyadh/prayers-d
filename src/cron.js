@@ -37,10 +37,28 @@ async function runDailyPrayerCheck() {
 }
 
 function startCronJobs() {
-  // Run at 23:59 every day
+  // Run at 23:59 every day (Baghdad time)
   cron.schedule('59 23 * * *', runDailyPrayerCheck, {
     scheduled: true,
     timezone: "Asia/Baghdad"
+  });
+
+  // Keep-alive: pings the app every 5 minutes to prevent Render from sleeping
+  cron.schedule('*/5 * * * *', async () => {
+    try {
+      const baseUrl = process.env.RENDER_EXTERNAL_URL || `http://localhost:${process.env.PORT || 3000}`;
+      // Ensure no double slashes if RENDER_EXTERNAL_URL has a trailing one
+      const url = `${baseUrl.replace(/\/$/, '')}/api/prayers/ping`;
+      
+      const res = await fetch(url);
+      if (res.ok) {
+        console.log(`Keep-alive ping successful: ${url}`);
+      } else {
+        console.warn(`Keep-alive ping returned status ${res.status}: ${url}`);
+      }
+    } catch (err) {
+      console.error('Keep-alive ping failed:', err.message);
+    }
   });
 }
 
