@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const { UpsertSchema, BatchSchema } = require('../validation/schemas');
+const { runDailyPrayerCheck } = require('../cron');
 
 const router = express.Router();
 
@@ -58,6 +59,16 @@ router.delete('/:dateKey', async (req, res, next) => {
   try {
     const ok = await db.deleteByDate(req.params.dateKey);
     res.json({ success: ok });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/prayers/trigger-cron - trigger daily check manually
+router.post('/trigger-cron', async (req, res, next) => {
+  try {
+    const result = await runDailyPrayerCheck();
+    res.json(result);
   } catch (err) {
     next(err);
   }
